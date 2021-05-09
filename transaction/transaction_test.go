@@ -57,14 +57,14 @@ func TestTransaction(t *testing.T) {
 	db.RunCommand(ctx, map[string]interface{}{"create": tableName})
 
 	table := db.Collection(tableName)
-	txnSess, txnUuid, err := StartTransaction(ctx, client)
+	txnSess, txnUUID, err := StartTransaction(ctx, client)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	txnCtx1 := mongo.TxnContextWithSession(ctx, txnSess)
 
-	txnSess2, txnUuid2, err := StartTransaction(ctx, client)
+	txnSess2, txnUUID2, err := StartTransaction(ctx, client)
 	if err != nil {
 		t.Error(err)
 		return
@@ -75,13 +75,6 @@ func TestTransaction(t *testing.T) {
 	// Insert data outside the transaction
 	rows := []interface{}{map[string]interface{}{"raw": 1}, map[string]interface{}{"raw": 2}}
 	if _, err := table.InsertMany(ctx, rows); err != nil {
-		t.Error(err)
-		return
-	}
-
-	// 设置事务内执行语句游标， 准备在事务内插入数据, 这个是必须的
-	// Set the cursor to execute the statement in the transaction, ready to insert data in the transaction
-	if err := NextTransactionCursor(ctx, txnUuid); err != nil {
 		t.Error(err)
 		return
 	}
@@ -105,12 +98,6 @@ func TestTransaction(t *testing.T) {
 		return
 	}
 
-	// 设置事务内执行语句游标， 准备在事务内修改数据
-	// Set the cursor to execute the statement in the transaction, prepare to modify the data in the transaction
-	if err := NextTransactionCursor(ctx, txnUuid); err != nil {
-		t.Error(err)
-		return
-	}
 	filter := map[string]interface{}{"txn": 1}
 	doc := map[string]interface{}{"$set": map[string]interface{}{"txn": 2}}
 	_, err = table.UpdateOne(txnCtx1, filter, doc)
@@ -131,12 +118,6 @@ func TestTransaction(t *testing.T) {
 		return
 	}
 
-	// 设置事务内执行语句游标， 准备在事务2插入数据
-	// Set the cursor to execute the statement within the transaction, ready to insert data in transaction 2
-	if err := NextTransactionCursor(txnCtx2, txnUuid2); err != nil {
-		t.Error(err)
-		return
-	}
 	// 事务2， 新加数据
 	// Transaction 2, new data
 	_, err = table.InsertOne(txnCtx2, map[string]interface{}{"txn2": 1})
@@ -145,12 +126,6 @@ func TestTransaction(t *testing.T) {
 		return
 	}
 
-	// 设置事务内执行语句游标， 准备在事务1内查看事务2的数据
-	// Set the cursor to execute the statement in the transaction, prepare to view the data of transaction 2 in transaction 1
-	if err := NextTransactionCursor(txnCtx1, txnUuid); err != nil {
-		t.Error(err)
-		return
-	}
 	// 事务外查询数据， 看是否能看到事务2内新加的数据
 	// Query data outside the transaction to see if you can see the newly added data in transaction 2
 	cnt, err = table.CountDocuments(txnCtx1, map[string]interface{}{"txn2": 1})
@@ -168,12 +143,12 @@ func TestTransaction(t *testing.T) {
 
 	// 提交事务
 	// commit transaction
-	if err := CommitTransaction(txnCtx1, txnUuid); err != nil {
+	if err := CommitTransaction(txnCtx1, txnUUID); err != nil {
 		t.Error(err)
 		return
 	}
 
-	if err := AbortTransaction(txnCtx2, txnUuid2); err != nil {
+	if err := AbortTransaction(txnCtx2, txnUUID2); err != nil {
 		t.Error(err)
 		return
 	}
@@ -199,6 +174,73 @@ func TestTransaction(t *testing.T) {
 	}
 	if cnt != 0 {
 		t.Error("Transaction abort failed")
+		return
+	}
+
+}
+
+func TestDistributeTransaction(t *testing.T) {
+	initMongoClient(t)
+	ctx := context.TODO()
+	db := client.Database(dbName)
+	tableName := "test"
+	db.Collection(tableName).Drop(ctx)
+	db.RunCommand(ctx, map[string]interface{}{"create": tableName})
+
+	table := db.Collection(tableName)
+	txnSessNode1, txnUUID, err := StartTransaction(ctx, client)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	txnCtxNode1 := mongo.TxnContextWithSession(ctx, txnSessNode1)
+
+	txnSessNode2, err := ReloadSession(ctx, client, txnUUID)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	txnCtxNode2 := mongo.TxnContextWithSession(ctx, txnSessNode2)
+
+	// node1 insert row
+	_, err = table.InsertOne(txnCtxNode1, map[string]interface{}{"txn": "node1"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	// node2 count row
+	cnt, err := table.CountDocuments(txnCtxNode2, map[string]interface{}{"txn": "node1"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if cnt == 0 {
+		t.Errorf("not found data")
+		return
+	}
+
+	// node2 insert row
+	_, err = table.InsertOne(txnCtxNode2, map[string]interface{}{"txn": "node2"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	// node1  commit transaction
+	if err := CommitTransaction(txnCtxNode1, txnUUID); err != nil {
+		t.Error(err)
+		return
+	}
+
+	// Query the data submitted by the transaction
+	cnt, err = table.CountDocuments(context.Background(), map[string]interface{}{"txn": "node2"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if cnt == 0 {
+		t.Error("Transaction commit failed")
 		return
 	}
 

@@ -13,7 +13,7 @@ This project can only solve distributed transactions in multiple tables in the s
 
 The mongodb server does not strictly bind the transaction in which the transaction is in, and the mongodb driver can initiate transactions to achieve this.
 Changing this solution will extend the mongodb golang driver code,
-It can be used for verification in mongodb driver 1.1.2 release and mongodb 4.0.x-4.2.x replic-set mode
+It can be used for verification in mongodb driver 1.1.2 release and mongodb 4.0.x-4.2.x replica-set mode
 
 ###### mongodb golang driver code extension content
 
@@ -40,7 +40,7 @@ Transaction/Transaction.go
 ```
 
 Encapsulate business logic, realize business-level management interfaces such as opening, committing, and rolling back transactions, and provide an operation interface for the transaction uuid and the cursor id record operation of the statement execution within the transaction.
-In actual use, the transaction uuid and in-service statement execution cursor id need to be stored centrally, and all service instances need to be available and used. You can use redis and mysql as central storage
+Now that the real transaction id of mongodb is directly exposed, there may be security risks in passing between different service nodes.
 
 
 ###### Specific implementation
@@ -48,8 +48,7 @@ In actual use, the transaction uuid and in-service statement execution cursor id
 1. Activate a transaction, generate a transaction uuid (mongodb driver provides the generation method), Transaction/Transaction.go: StartTransaction
 2. Activate a session through the uuid of the transaction and join a transaction of the mongodb server, Transaction/Transaction.go: ReloadSession
 3. Bind the transaction to the session, get the SessionContext, mongo/session_exposer.go:TxnContextWithSession
-4. Transaction execution needs to move the cursor, Transaction/Transaction.go: NextTransactionCursor
-5. Perform curl operations
+4. Perform curl operations
 
 
 

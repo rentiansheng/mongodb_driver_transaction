@@ -15,28 +15,15 @@ package Transaction
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"fmt"
-	"sync"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/uuid"
 )
 
 var (
-	defaultTxnNumber TxnNumber
-	client           *mongo.Client
+	client *mongo.Client
 )
-
-func init() {
-	defaultTxnNumber = &memoryTxnNumber{
-		relation: make(map[string]int64, 0),
-	}
-}
-
-func RegistryTxnNumber(tn TxnNumber) {
-	defaultTxnNumber = tn
-}
 
 // CommitTransaction 提交事务
 func CommitTransaction(ctx context.Context, txnUUID string) error {
@@ -50,12 +37,6 @@ func CommitTransaction(ctx context.Context, txnUUID string) error {
 	err = reloadSession.CommitTransaction(ctx)
 	if err != nil {
 		return fmt.Errorf("commit transaction: %s failed, err: %v", txnUUID, err)
-	}
-
-	err = defaultTxnNumber.Remove(ctx, txnUUID)
-	if err != nil {
-		// TODO: There can be timed compensation tasks to complete, test code no implemet logic
-		//return fmt.Errorf("commit transaction, but delete txn session: %s key failed, err: %v", txnUUID, err)
 	}
 
 	return nil
@@ -74,19 +55,6 @@ func AbortTransaction(ctx context.Context, txnUUID string) error {
 		return fmt.Errorf("abort transaction: %s failed, err: %v", txnUUID, err)
 	}
 
-	err = defaultTxnNumber.Remove(ctx, txnUUID)
-	if err != nil {
-		// TODO: There can be timed compensation tasks to complete, test code no implemet logic
-		//return fmt.Errorf("commit transaction, but delete txn session: %s key failed, err: %v", txnUUID, err)
-	}
-
-	return nil
-}
-
-func NextTransactionCursor(ctx context.Context, txnUUID string) error {
-	if _, err := defaultTxnNumber.GetTxnNumber(ctx, txnUUID); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -114,16 +82,15 @@ func reloadSession(ctx context.Context, cli *mongo.Client, txnUUID string) (mong
 
 	var txnNumber int64
 	if txnUUID == "" {
-		txnUUID, err = defaultTxnNumber.GenTxnNumber(ctx)
-		txnNumber = 0
+		mUUID, err := uuid.New()
 		if err != nil {
 			return nil, txnUUID, fmt.Errorf("generate txn number failed, err: %v", err)
 		}
+		txnUUID = base64.StdEncoding.EncodeToString(mUUID[:])
+		txnNumber = 1
 	} else {
-		txnNumber, err = defaultTxnNumber.GetTxnNumber(ctx, txnUUID)
-		if err != nil {
-			return nil, txnUUID, fmt.Errorf("get txn number failed, err: %v", err)
-		}
+		txnNumber = 2
+
 	}
 
 	// reset the session info with the session id.
@@ -138,52 +105,4 @@ func reloadSession(ctx context.Context, cli *mongo.Client, txnUUID string) (mong
 	}
 
 	return sess, txnUUID, nil
-}
-
-type TxnNumber interface {
-	// GenTxnNumber generate a new transaction uuid
-	GenTxnNumber(context.Context) (string, error)
-	// GetTxnNumber next execute statement sequence id of transaction uuid
-	// 0 is used to start the transaction, and the first statement executed is 1
-	GetTxnNumber(context.Context, string) (int64, error)
-
-	//Empty(context.Context, string) (int64, error)
-	// Remove transaction end, delete transaction uuid
-	Remove(context.Context, string) error
-}
-
-type memoryTxnNumber struct {
-	relation map[string]int64
-	sync.RWMutex
-}
-
-func (m *memoryTxnNumber) GenTxnNumber(ctx context.Context) (string, error) {
-	m.Lock()
-	defer m.Unlock()
-	mUuid, _ := uuid.New()
-	flag := base64.StdEncoding.EncodeToString(mUuid[:])
-	m.relation[flag] = 1
-
-	return flag, nil
-}
-
-func (m *memoryTxnNumber) GetTxnNumber(ctx context.Context, txnUUID string) (int64, error) {
-	m.RLock()
-	defer m.RUnlock()
-
-	val, exist := m.relation[txnUUID]
-	if !exist {
-		return val, errors.New("not found txn number")
-	}
-	m.relation[txnUUID] = val + 1
-	return val, nil
-}
-
-func (m *memoryTxnNumber) Remove(ctx context.Context, txnUUID string) error {
-	m.Lock()
-	defer m.Unlock()
-
-	delete(m.relation, txnUUID)
-
-	return nil
 }
