@@ -38,6 +38,7 @@ Transaction/Transaction.go
 ```
 
 封装业务逻辑，实现业务层面需要开启，提交，回滚事务等管理接口， 并且提供一个关于事务uuid 与 事务内语句执行游标id记录操作接口。
+
 现在直接将mongodb 真是的事务id暴露出来，在不同服务节点之间传递可能存在安全风险。
 
 
@@ -56,10 +57,9 @@ Transaction/Transaction.go
 #### 方案发现和落地
 
 参与人员：
+
 [rentiansheng](https://github.com/rentiansheng)
-
 [wusendong](https://github.com/wusendong)
-
 [breezelxp](https://github.com/breezelxp)
 
 使用项目：

@@ -51,30 +51,18 @@ Now that the real transaction id of mongodb is directly exposed, there may be se
 4. Perform curl operations
 
 
-
-#### requires attention
-
--The TxnNumber in the current code is only for testing and cannot be used in online multi-service scenarios
--Uuid in TxnNumber must use go.mongodb.org/mongo-driver/x/mongo/driver/uuid base64 encoded string value
-
-
-
-
-
 #### Solution discovery and implementation
 
 participants:
 [rentiansheng](https://github.com/rentiansheng)
-
 [wusendong](https://github.com/wusendong)
-
 [breezelxp](https://github.com/breezelxp)
 
 
 Use project:
 
 
-[Blue Whale Configuration Platform](https://github.com/Tencent/bk-cmdb)
+[BlueKing Configuration Platform](https://github.com/Tencent/bk-cmdb)
 
 #### Drainage
 [bson decode register](https://github.com/rentiansheng/bson-register)
