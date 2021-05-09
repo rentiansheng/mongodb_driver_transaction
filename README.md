@@ -40,6 +40,7 @@ Transaction/Transaction.go
 ```
 
 Encapsulate business logic, realize business-level management interfaces such as opening, committing, and rolling back transactions, and provide an operation interface for the transaction uuid and the cursor id record operation of the statement execution within the transaction.
+
 Now that the real transaction id of mongodb is directly exposed, there may be security risks in passing between different service nodes.
 
 
@@ -54,6 +55,7 @@ Now that the real transaction id of mongodb is directly exposed, there may be se
 #### Solution discovery and implementation
 
 participants:
+
 [rentiansheng](https://github.com/rentiansheng)
 [wusendong](https://github.com/wusendong)
 [breezelxp](https://github.com/breezelxp)
