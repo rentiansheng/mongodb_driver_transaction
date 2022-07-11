@@ -52,14 +52,7 @@ Now that the real transaction id of mongodb is directly exposed, there may be se
 4. Perform curl operations
 
 
-#### Solution discovery and implementation
-
-participants:
-
-[rentiansheng](https://github.com/rentiansheng)
-[wusendong](https://github.com/wusendong)
-[breezelxp](https://github.com/breezelxp)
-
+#### Solution implementation
 
 Use project:
 
